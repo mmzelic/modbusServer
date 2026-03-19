@@ -1,5 +1,4 @@
 import tkinter as tk
-from tkinter import ttk
 import threading
 import asyncio
 import sys
@@ -38,18 +37,18 @@ ANALOG_MAPPING = {
     220: "Atom Ret", 221: "Fan Ret", 222: "Flow Ret", 223: "Volt FB", 231: "Act Recp"
 }
 
-# --- THEME COLORS ---
-BG_MAIN = "#f0f2f5"        
-COLOR_ON = "#2ecc71"       
-COLOR_OFF = "#e74c3c"      
-COLOR_READONLY = "#34495e" 
-COLOR_READWRITE = "#8e44ad" 
+# --- UNIFIED MODERN "TECH" COLOR PALETTE ---
+BG_MAIN = "#ecf0f1"          
+COLOR_ON = "#00b894"         
+COLOR_OFF = "#d63031"        
+COLOR_READONLY = "#2c3e50"   # Midnight Blue
+COLOR_READWRITE = "#2c3e50"  # Unified Midnight Blue
 
 class ModbusGUISimulator:
     def __init__(self, root):
         self.root = root
-        self.root.title("Compact Modbus Dashboard")
-        self.root.geometry("1050x700") # Reduced default height
+        self.root.title("Modern Modbus Server Dashboard")
+        self.root.geometry("1280x800") 
         self.root.configure(bg=BG_MAIN)
         
         # Internal Data Store
@@ -68,168 +67,150 @@ class ModbusGUISimulator:
         self.analog_uis = {}
         
         self.setup_ui()
-        self.bind_mouse_wheel()
 
     # --- UI SETUP ---
     def setup_ui(self):
-        # 1. HEADER (Controls) - More compact padding
-        hdr = tk.Frame(self.root, bg="#212f3d", pady=5, padx=10)
+        # 1. HEADER
+        hdr = tk.Frame(self.root, bg="#1e272e", pady=8, padx=15)
         hdr.pack(fill="x")
         
-        tk.Label(hdr, text="MODBUS SERVER", bg="#212f3d", fg="#f1c40f", font=("Arial", 11, "bold")).pack(side="left", padx=(0, 15))
+        tk.Label(hdr, text="MODBUS SERVER", bg="#1e272e", fg="#00b894", font=("Arial", 12, "bold")).pack(side="left", padx=(0, 20))
         
-        tk.Label(hdr, text="IP:", bg="#212f3d", fg="white", font=("Arial", 9, "bold")).pack(side="left")
-        self.ip_entry = tk.Entry(hdr, width=13, font=("Arial", 9), bd=0, relief="flat")
-        self.ip_entry.insert(0, "127.0.0.1")
-        self.ip_entry.pack(side="left", padx=(5, 15), ipady=2)
+        tk.Label(hdr, text="IP:", bg="#1e272e", fg="white", font=("Arial", 9, "bold")).pack(side="left")
+        self.ip_entry = tk.Entry(hdr, width=14, font=("Arial", 10), bd=0, relief="flat")
+        self.ip_entry.insert(0, "0.0.0.0")
+        self.ip_entry.pack(side="left", padx=(5, 15), ipady=3)
         
-        tk.Label(hdr, text="Port:", bg="#212f3d", fg="white", font=("Arial", 9, "bold")).pack(side="left")
-        self.port_entry = tk.Entry(hdr, width=5, font=("Arial", 9), bd=0, relief="flat")
+        tk.Label(hdr, text="Port:", bg="#1e272e", fg="white", font=("Arial", 9, "bold")).pack(side="left")
+        self.port_entry = tk.Entry(hdr, width=6, font=("Arial", 10), bd=0, relief="flat")
         self.port_entry.insert(0, "502")
-        self.port_entry.pack(side="left", padx=(5, 15), ipady=2)
+        self.port_entry.pack(side="left", padx=(5, 15), ipady=3)
         
-        self.btn_online = tk.Button(hdr, text="🔌 GO ONLINE", bg="#f39c12", fg="white", font=("Arial", 8, "bold"), 
-                                    relief="flat", cursor="hand2", padx=8, command=self.toggle_server)
+        self.btn_online = tk.Button(hdr, text="🔌 GO ONLINE", bg="#f39c12", fg="white", font=("Arial", 9, "bold"), 
+                                    relief="flat", cursor="hand2", padx=10, pady=2, command=self.toggle_server)
         self.btn_online.pack(side="left")
         
-        self.status_lbl = tk.Label(hdr, text="STATUS: OFFLINE", bg="#212f3d", fg="#e74c3c", font=("Arial", 9, "bold"))
+        self.status_lbl = tk.Label(hdr, text="STATUS: OFFLINE", bg="#1e272e", fg="#e84118", font=("Arial", 10, "bold"))
         self.status_lbl.pack(side="right", padx=10)
 
-        # 2. SCROLLING CONTAINER
-        cont = tk.Frame(self.root, bg=BG_MAIN)
-        cont.pack(fill="both", expand=True, padx=5, pady=5)
-        self.canvas = tk.Canvas(cont, bg=BG_MAIN, highlightthickness=0)
-        sb = ttk.Scrollbar(cont, orient="vertical", command=self.canvas.yview)
-        self.scroll_frame = tk.Frame(self.canvas, bg=BG_MAIN)
-        
-        self.scroll_frame.bind("<Configure>", lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all")))
-        self.canvas.create_window((0, 0), window=self.scroll_frame, anchor="nw", width=self.canvas.winfo_reqwidth())
-        self.canvas.bind('<Configure>', lambda e: self.canvas.itemconfig(self.canvas.find_withtag("all")[0], width=e.width))
-
-        self.canvas.configure(yscrollcommand=sb.set)
-        self.canvas.pack(side="left", fill="both", expand=True)
-        sb.pack(side="right", fill="y")
+        # 2. MAIN STATIC CONTAINER (Replaced Scrollbar logic)
+        self.main_frame = tk.Frame(self.root, bg=BG_MAIN)
+        self.main_frame.pack(fill="both", expand=True, padx=10, pady=10)
 
         # =========================================================
-        # SECTION 1: SnX to PLC (Read Only)
+        # SECTION 1: SnX to PLC (Server Monitor)
         # =========================================================
-        sec1 = tk.Frame(self.scroll_frame, bg="white", bd=1, relief="solid")
+        sec1 = tk.Frame(self.main_frame, bg="white", bd=1, relief="solid")
         sec1.pack(fill="x", pady=(0, 10))
-        
-        tk.Label(sec1, text="SnX to PLC", bg=COLOR_READONLY, fg="white", font=("Arial", 11, "bold"), pady=4).pack(fill="x")
+        tk.Label(sec1, text="SnX to PLC (Server Read-Only)", bg=COLOR_READONLY, fg="white", font=("Arial", 11, "bold"), pady=6).pack(fill="x")
         
         ro_bits = [r for r in BIT_MAPPING.keys() if r < 200]
         ro_analogs = [r for r in ANALOG_MAPPING.keys() if r < 200]
-        
         self.build_bit_grid(sec1, ro_bits, is_writable=False)
         self.build_analog_grid(sec1, ro_analogs, is_writable=False)
 
         # =========================================================
-        # SECTION 2: PLC to SnX (Writable / Interactive)
+        # SECTION 2: PLC to SnX (Server Override Control)
         # =========================================================
-        sec2 = tk.Frame(self.scroll_frame, bg="white", bd=1, relief="solid")
+        sec2 = tk.Frame(self.main_frame, bg="white", bd=1, relief="solid")
         sec2.pack(fill="x", pady=(0, 10))
         
-        tk.Label(sec2, text="PLC to SnX", bg=COLOR_READWRITE, fg="white", font=("Arial", 11, "bold"), pady=4).pack(fill="x")
-        
+        # Added a helpful hint for the new "Enter to Save" analog feature
+        hdr2 = tk.Frame(sec2, bg=COLOR_READWRITE)
+        hdr2.pack(fill="x")
+        tk.Label(hdr2, text="PLC to SnX (Server Override)", bg=COLOR_READWRITE, fg="white", font=("Arial", 11, "bold"), pady=6).pack(side="left", padx=10)
+        tk.Label(hdr2, text="💡 Tip: Press ENTER to apply analog values", bg=COLOR_READWRITE, fg="#dcdde1", font=("Arial", 8, "italic")).pack(side="right", padx=10)
+
         rw_bits = [r for r in BIT_MAPPING.keys() if r >= 200]
         rw_analogs = [r for r in ANALOG_MAPPING.keys() if r >= 200]
-        
         self.build_bit_grid(sec2, rw_bits, is_writable=True)
         self.build_analog_grid(sec2, rw_analogs, is_writable=True)
 
     # --- UI COMPONENT BUILDERS ---
     def build_bit_grid(self, parent, registers, is_writable):
         if not registers: return
-
+        
+        grid_frame = tk.Frame(parent, bg="white")
+        grid_frame.pack(fill="x", padx=10, pady=5)
+        
+        cols = 2 
+        r, c = 0, 0
+        
         for reg in sorted(registers):
             header_color = COLOR_READWRITE if is_writable else COLOR_READONLY
             
-            lf = tk.Frame(parent, bg="#f8f9fa", highlightbackground="#e0e0e0", highlightthickness=1)
-            lf.pack(fill="x", padx=10, pady=4)
+            lf = tk.Frame(grid_frame, bg="#f8f9fa", highlightbackground="#dcdde1", highlightthickness=1)
+            lf.grid(row=r, column=c, sticky="nsew", padx=6, pady=6)
+            grid_frame.grid_columnconfigure(c, weight=1) 
             
             hdr_frame = tk.Frame(lf, bg=header_color)
             hdr_frame.pack(fill="x")
             
-            tk.Label(hdr_frame, text=f" Reg {reg}", bg=header_color, fg="white", font=("Arial", 8, "bold"), anchor="w").pack(side="left", fill="x", expand=True, pady=2)
-            reg_val_lbl = tk.Label(hdr_frame, text="Current value: 0", bg=header_color, fg="#f1c40f", font=("Courier", 9, "bold"))
-            reg_val_lbl.pack(side="right", padx=10)
+            tk.Label(hdr_frame, text=f" Reg {reg}", bg=header_color, fg="white", font=("Arial", 9, "bold"), anchor="w").pack(side="left", fill="x", expand=True, pady=3)
+            reg_val_lbl = tk.Label(hdr_frame, text="Current: 0", bg=header_color, fg="#ffffff", font=("Courier", 9, "bold"))
+            reg_val_lbl.pack(side="right", padx=8)
             
             bit_container = tk.Frame(lf, bg="#f8f9fa")
-            bit_container.pack(fill="x", pady=2, padx=4)
+            bit_container.pack(fill="x", pady=4, padx=4)
             
-            row = []
+            row_items = []
             for b in range(16):
-                # Removed "b" prefix, just leave the number if unnamed
                 name = BIT_MAPPING[reg].get(b, str(b))
                 cursor_type = "hand2" if is_writable else "arrow"
                 
                 f = tk.Frame(bit_container, bd=0, bg=COLOR_OFF, cursor=cursor_type)
                 f.pack(side="right", expand=True, fill="both", padx=1)
                 
-                # Removed text completely. Fixed width to prevent jittering on click.
-                v = tk.Label(f, text="", bg=COLOR_OFF, width=3, height=1, cursor=cursor_type)
-                v.pack(pady=(2,0))
-                
-                tk.Label(f, text=name, font=("Arial", 7), wraplength=45, bg=COLOR_OFF, fg="white", cursor=cursor_type).pack(fill="both", pady=(0,2))
+                lbl = tk.Label(f, text=name, font=("Arial", 7, "bold"), bg=COLOR_OFF, fg="white", 
+                               height=2, wraplength=55, cursor=cursor_type)
+                lbl.pack(fill="both", expand=True, pady=1)
                 
                 if is_writable:
                     f.bind("<Button-1>", self.make_bit_toggler(reg, b))
-                    v.bind("<Button-1>", self.make_bit_toggler(reg, b))
-                    for child in f.winfo_children(): child.bind("<Button-1>", self.make_bit_toggler(reg, b))
+                    lbl.bind("<Button-1>", self.make_bit_toggler(reg, b))
                 
-                row.append({"lbl": v, "frame": f, "named": b in BIT_MAPPING[reg], "children": f.winfo_children()})
+                row_items.append({"lbl": lbl, "frame": f, "named": b in BIT_MAPPING[reg]})
             
-            self.bit_uis[reg] = {"bits": row[::-1], "val_lbl": reg_val_lbl}
+            self.bit_uis[reg] = {"bits": row_items[::-1], "val_lbl": reg_val_lbl}
+            
+            c += 1
+            if c >= cols:
+                c = 0
+                r += 1
 
     def build_analog_grid(self, parent, registers, is_writable):
         if not registers: return
-
         grid = tk.Frame(parent, bg="white")
         grid.pack(fill="x", padx=10, pady=(4, 10))
-        
         r, c = 0, 0
         for reg in sorted(registers):
             border_color = COLOR_READWRITE if is_writable else COLOR_READONLY
             
-            f = tk.Frame(grid, bg="#f8f9fa", highlightbackground=border_color, highlightthickness=1)
-            f.grid(row=r, column=c, sticky="nsew", padx=3, pady=3)
+            f = tk.Frame(grid, bg="#f5f6fa", highlightbackground=border_color, highlightthickness=1)
+            f.grid(row=r, column=c, sticky="nsew", padx=4, pady=4)
             grid.grid_columnconfigure(c, weight=1) 
             
-            hdr = tk.Frame(f, bg="#eaeded")
+            hdr = tk.Frame(f, bg="#dcdde1")
             hdr.pack(fill="x")
-            tk.Label(hdr, text=f"Reg {reg}", font=("Arial", 7, "bold"), bg="#eaeded", fg="#7f8c8d").pack(side="left", padx=4, pady=1)
+            tk.Label(hdr, text=f"Reg {reg}", font=("Arial", 8, "bold"), bg="#dcdde1", fg="#2f3640").pack(side="left", padx=5, pady=2)
             
-            tk.Label(f, text=ANALOG_MAPPING[reg], font=("Arial", 8, "bold"), bg="#f8f9fa", fg="#2c3e50", wraplength=110).pack(pady=4)
+            tk.Label(f, text=ANALOG_MAPPING[reg], font=("Arial", 9, "bold"), bg="#f5f6fa", fg="#2f3640", wraplength=110).pack(pady=6)
             
             if is_writable:
-                input_frame = tk.Frame(f, bg="#f8f9fa")
-                input_frame.pack(pady=(0, 5))
-                entry = tk.Entry(input_frame, font=("Courier", 10, "bold"), width=5, justify="center", bd=1, relief="solid")
-                entry.pack(side="left", padx=2)
-                btn = tk.Button(input_frame, text="SET", bg=COLOR_READWRITE, fg="white", font=("Arial", 7, "bold"), 
-                                relief="flat", cursor="hand2", command=lambda reg=reg, e=entry: self.write_analog(reg, e))
-                btn.pack(side="left", padx=2)
+                entry = tk.Entry(f, font=("Courier", 12, "bold"), fg=COLOR_READWRITE, width=8, justify="center", bd=1, relief="solid")
+                entry.pack(pady=(0, 8))
+                
+                # Bind the ENTER key to save the analog value seamlessly
+                entry.bind("<Return>", lambda e, r=reg, ent=entry: self.write_analog(r, ent))
                 self.analog_uis[reg] = {"type": "rw", "entry": entry}
             else:
-                l = tk.Label(f, text="0", font=("Courier", 11, "bold"), fg="#2980b9", bg="white", width=6, bd=1, relief="solid", pady=1)
-                l.pack(pady=(0, 6))
+                l = tk.Label(f, text="0", font=("Courier", 12, "bold"), fg=COLOR_READONLY, bg="white", width=7, bd=1, relief="solid", pady=2)
+                l.pack(pady=(0, 8))
                 self.analog_uis[reg] = {"type": "ro", "lbl": l}
             
             c += 1
-            if c > 5: # Fit 6 across now
+            if c > 5: 
                 c = 0; r += 1
-
-    # --- MOUSE WHEEL SCROLLING ---
-    def bind_mouse_wheel(self):
-        self.root.bind_all("<MouseWheel>", self._on_mousewheel)
-        self.root.bind_all("<Button-4>", self._on_mousewheel)
-        self.root.bind_all("<Button-5>", self._on_mousewheel)
-
-    def _on_mousewheel(self, event):
-        if event.num == 4: self.canvas.yview_scroll(-1, "units")
-        elif event.num == 5: self.canvas.yview_scroll(1, "units")
-        else: self.canvas.yview_scroll(int(-1*(event.delta/120)), "units")
 
     # --- SERVER START / STOP LOGIC ---
     def toggle_server(self):
@@ -241,19 +222,19 @@ class ModbusGUISimulator:
             self.ip_entry.config(state="normal")
             self.port_entry.config(state="normal")
             self.btn_online.config(text="🔌 GO ONLINE", bg="#f39c12")
-            self.status_lbl.config(text="STATUS: OFFLINE", fg="#e74c3c")
+            self.status_lbl.config(text="STATUS: OFFLINE", fg="#e84118")
         else:
             self.target_ip = self.ip_entry.get()
             try: self.target_port = int(self.port_entry.get())
             except ValueError:
-                self.status_lbl.config(text="ERROR: BAD PORT")
+                self.status_lbl.config(text="ERROR: BAD PORT", fg="#e84118")
                 return
 
             self.is_online = True
             self.ip_entry.config(state="disabled")
             self.port_entry.config(state="disabled")
-            self.btn_online.config(text="🔴 GO OFFLINE", bg="#e74c3c")
-            self.status_lbl.config(text="STATUS: RUNNING", fg="#2ecc71")
+            self.btn_online.config(text="🔴 GO OFFLINE", bg="#e84118")
+            self.status_lbl.config(text="STATUS: RUNNING", fg="#00b894")
             
             self.server_thread = threading.Thread(target=self.run_server, daemon=True)
             self.server_thread.start()
@@ -266,7 +247,7 @@ class ModbusGUISimulator:
         except Exception as e: print(f"Server Error: {e}")
 
     # ========================================================================
-    # FIXED: ALIGNED DATA ACCESS METHODS (+1 SHIFT)
+    # DATA ACCESS METHODS 
     # ========================================================================
     def get_safe_values(self):
         if hasattr(self.store, 'getValues'): return self.store.getValues(1, 250) 
@@ -302,30 +283,33 @@ class ModbusGUISimulator:
             if val < 0: val = 0 
             if val > 65535: val = 65535
             self.write_register(reg, val)
+            
+            # Remove focus so the UI updates and flashes instantly to prove it saved
+            self.root.focus_set()
         except ValueError: pass
 
     # --- GUI UPDATE LOOP ---
     def update_gui(self):
-        if not self.is_online: return
+        if not self.is_online: 
+            return
+            
         try:
             vals = self.get_safe_values()
                 
             for reg, data in self.bit_uis.items():
                 rv = vals[reg]
                 
-                if data["val_lbl"].cget("text") != f"Current value: {rv}":
-                    data["val_lbl"].config(text=f"Current value: {rv}")
+                if data["val_lbl"].cget("text") != f"Current: {rv}":
+                    data["val_lbl"].config(text=f"Current: {rv}")
                 
                 for i in range(16):
                     active = (rv >> i) & 1
                     ui = data["bits"][15-i]
                     bg_color = COLOR_ON if active else COLOR_OFF
                     
-                    # Check background color instead of text to update, since text is removed
                     if ui["lbl"].cget("bg") != bg_color:
                         ui["lbl"].config(bg=bg_color)
                         ui["frame"].config(bg=bg_color)
-                        for child in ui["children"]: child.config(bg=bg_color)
                     
             for reg, ui in self.analog_uis.items():
                 current_val = vals[reg]
