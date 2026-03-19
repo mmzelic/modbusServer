@@ -1,6 +1,6 @@
 # Modern Modbus Server Simulator
 
-A Python-based Modbus TCP server simulator with a live graphical interface. Built to perfectly mirror the aesthetics of the Client Dashboard, this tool allows developers and integrators to test Modbus communications locally without needing physical PLC hardware.
+A Python-based Modbus TCP server simulator with a live graphical interface. This tool allows developers and integrators to spin up a fully interactive Modbus server to test HMI/SCADA communications across a local network without needing physical PLC hardware.
 
 ## Features
 
@@ -25,8 +25,11 @@ pip install pymodbus
    ```bash
    python modbus_server.py
    ```
-2. **Start the Server:** Ensure the IP and Port are set (defaults to `127.0.0.1:502`), then click **🔌 GO ONLINE**. The status will change to `RUNNING`.
-3. **Connect Clients:** You can now connect your SCADA client, HMI, or the companion Client Dashboard to this IP and Port.
+2. **Configure the Network & Start Server:** * For a connection strictly on the same computer, leave the IP as `127.0.0.1`.
+   * **For a connection from a local PC on your network, you should put the IP as `0.0.0.0` and open the ports if necessary.** This binds the server to all network interfaces.
+   * Note that when you do this, the actual server IP that clients must connect to will be this local PC's IP address (e.g., `192.168.1.50`).
+   * Click **🔌 GO ONLINE**. The status will change to `RUNNING`.
+3. **Connect Clients:** You can now connect your SCADA client, HMI, or the companion Client Dashboard to this server.
 4. **Simulate PLC Logic:**
    * The top section allows you to view incoming commands from connected clients.
    * The bottom section ("Server Override") allows you to manipulate the data the server is broadcasting. Click bits to toggle them, or type an integer (0-65535) and press `ENTER` to simulate analog sensor changes.
@@ -34,4 +37,5 @@ pip install pymodbus
 
 ## Troubleshooting
 
-* **Address Already in Use / Permission Denied:** If the server fails to start on port `502`, ensure you are not running another Modbus server. Note: On Linux/macOS, binding to ports below `1024` (like 502) requires `sudo` privileges. Alternatively, change the port to `5020` for local testing.
+* **Firewall Issues:** If external clients cannot connect when using `0.0.0.0`, ensure that you have opened the target port (default `502`) in your Windows/OS Firewall for inbound connections.
+* **Address Already in Use / Permission Denied:** If the server fails to start on port `502`, ensure you are not running another Modbus server. On Linux/macOS, binding to ports below `1024` requires `sudo`. Alternatively, change the port to `5020`.
