@@ -41,8 +41,8 @@ ANALOG_MAPPING = {
 BG_MAIN = "#ecf0f1"          
 COLOR_ON = "#00b894"         
 COLOR_OFF = "#d63031"        
-COLOR_READONLY = "#2c3e50"   # Midnight Blue
-COLOR_READWRITE = "#2c3e50"  # Unified Midnight Blue
+COLOR_READONLY = "#2c3e50"   
+COLOR_READWRITE = "#2c3e50"  
 
 class ModbusGUISimulator:
     def __init__(self, root):
@@ -78,7 +78,7 @@ class ModbusGUISimulator:
         
         tk.Label(hdr, text="IP:", bg="#1e272e", fg="white", font=("Arial", 9, "bold")).pack(side="left")
         self.ip_entry = tk.Entry(hdr, width=14, font=("Arial", 10), bd=0, relief="flat")
-        self.ip_entry.insert(0, "0.0.0.0")
+        self.ip_entry.insert(0, "0.0.0.0") # Set default to allow external connections out of the box
         self.ip_entry.pack(side="left", padx=(5, 15), ipady=3)
         
         tk.Label(hdr, text="Port:", bg="#1e272e", fg="white", font=("Arial", 9, "bold")).pack(side="left")
@@ -93,13 +93,10 @@ class ModbusGUISimulator:
         self.status_lbl = tk.Label(hdr, text="STATUS: OFFLINE", bg="#1e272e", fg="#e84118", font=("Arial", 10, "bold"))
         self.status_lbl.pack(side="right", padx=10)
 
-        # 2. MAIN STATIC CONTAINER (Replaced Scrollbar logic)
+        # 2. MAIN STATIC CONTAINER 
         self.main_frame = tk.Frame(self.root, bg=BG_MAIN)
         self.main_frame.pack(fill="both", expand=True, padx=10, pady=10)
 
-        # =========================================================
-        # SECTION 1: SnX to PLC (Server Monitor)
-        # =========================================================
         sec1 = tk.Frame(self.main_frame, bg="white", bd=1, relief="solid")
         sec1.pack(fill="x", pady=(0, 10))
         tk.Label(sec1, text="SnX to PLC (Server Read-Only)", bg=COLOR_READONLY, fg="white", font=("Arial", 11, "bold"), pady=6).pack(fill="x")
@@ -109,13 +106,9 @@ class ModbusGUISimulator:
         self.build_bit_grid(sec1, ro_bits, is_writable=False)
         self.build_analog_grid(sec1, ro_analogs, is_writable=False)
 
-        # =========================================================
-        # SECTION 2: PLC to SnX (Server Override Control)
-        # =========================================================
         sec2 = tk.Frame(self.main_frame, bg="white", bd=1, relief="solid")
         sec2.pack(fill="x", pady=(0, 10))
         
-        # Added a helpful hint for the new "Enter to Save" analog feature
         hdr2 = tk.Frame(sec2, bg=COLOR_READWRITE)
         hdr2.pack(fill="x")
         tk.Label(hdr2, text="PLC to SnX (Server Override)", bg=COLOR_READWRITE, fg="white", font=("Arial", 11, "bold"), pady=6).pack(side="left", padx=10)
@@ -129,7 +122,6 @@ class ModbusGUISimulator:
     # --- UI COMPONENT BUILDERS ---
     def build_bit_grid(self, parent, registers, is_writable):
         if not registers: return
-        
         grid_frame = tk.Frame(parent, bg="white")
         grid_frame.pack(fill="x", padx=10, pady=5)
         
@@ -200,7 +192,6 @@ class ModbusGUISimulator:
                 entry = tk.Entry(f, font=("Courier", 12, "bold"), fg=COLOR_READWRITE, width=8, justify="center", bd=1, relief="solid")
                 entry.pack(pady=(0, 8))
                 
-                # Bind the ENTER key to save the analog value seamlessly
                 entry.bind("<Return>", lambda e, r=reg, ent=entry: self.write_analog(r, ent))
                 self.analog_uis[reg] = {"type": "rw", "entry": entry}
             else:
@@ -212,17 +203,30 @@ class ModbusGUISimulator:
             if c > 5: 
                 c = 0; r += 1
 
-    # --- SERVER START / STOP LOGIC ---
+    # ========================================================================
+    # FIXED: SERVER START / STOP LOGIC (Safe Teardown)
+    # ========================================================================
     def toggle_server(self):
         if self.is_online:
+            # FIX: Safely route the async shutdown command to the background loop
             if self.loop and self.loop.is_running():
-                self.loop.call_soon_threadsafe(ServerAsyncStop)
+                try:
+                    if asyncio.iscoroutinefunction(ServerAsyncStop):
+                        asyncio.run_coroutine_threadsafe(ServerAsyncStop(), self.loop)
+                    else:
+                        self.loop.call_soon_threadsafe(ServerAsyncStop)
+                except Exception as e:
+                    print(f"Error stopping server gracefully: {e}")
+                    self.loop.call_soon_threadsafe(self.loop.stop)
                 
             self.is_online = False
             self.ip_entry.config(state="normal")
             self.port_entry.config(state="normal")
             self.btn_online.config(text="🔌 GO ONLINE", bg="#f39c12")
             self.status_lbl.config(text="STATUS: OFFLINE", fg="#e84118")
+            
+            # Reset UI to 0 so you don't look at dead data
+            self.force_ui_zero()
         else:
             self.target_ip = self.ip_entry.get()
             try: self.target_port = int(self.port_entry.get())
@@ -243,8 +247,39 @@ class ModbusGUISimulator:
     def run_server(self):
         self.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
-        try: self.loop.run_until_complete(StartAsyncTcpServer(context=self.server_context, address=(self.target_ip, self.target_port)))
-        except Exception as e: print(f"Server Error: {e}")
+        try: 
+            self.loop.run_until_complete(StartAsyncTcpServer(context=self.server_context, address=(self.target_ip, self.target_port)))
+        except Exception as e: 
+            print(f"Server Error: {e}")
+        finally:
+            try:
+                self.loop.close() # Ensure socket is completely freed when the server dies
+            except Exception:
+                pass
+
+    def force_ui_zero(self):
+        """Instantly zero out the server UI when disconnected."""
+        # Also wipe the internal memory store so it starts fresh next connection
+        if hasattr(self.store, 'setValues'):
+            self.store.setValues(1, [0] * 250)
+        else:
+            offset = 1 if len(self.store.values) > 300 else 0
+            for i in range(250): self.store.values[i + offset] = 0
+
+        for reg, data in self.bit_uis.items():
+            data["val_lbl"].config(text="Current: 0")
+            for i in range(16):
+                ui = data["bits"][15-i]
+                ui["lbl"].config(bg=COLOR_OFF)
+                ui["frame"].config(bg=COLOR_OFF)
+                
+        for reg, ui in self.analog_uis.items():
+            if ui["type"] == "ro":
+                ui["lbl"].config(text="0")
+            elif ui["type"] == "rw":
+                entry = ui["entry"]
+                entry.delete(0, tk.END)
+                entry.insert(0, "0")
 
     # ========================================================================
     # DATA ACCESS METHODS 
@@ -284,7 +319,6 @@ class ModbusGUISimulator:
             if val > 65535: val = 65535
             self.write_register(reg, val)
             
-            # Remove focus so the UI updates and flashes instantly to prove it saved
             self.root.focus_set()
         except ValueError: pass
 
